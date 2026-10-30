@@ -3,10 +3,6 @@ name: Build Petra Ride Pilot APK
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'PetraRidePilot-Android-Starter.zip'
-      - '.github/workflows/build.yml'
 
 jobs:
   build:
@@ -22,26 +18,25 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Check Android SDK
+      - name: Install Android packages
         run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          ls "$ANDROID_HOME/platforms"
-          ls "$ANDROID_HOME/build-tools"
+          yes | sdkmanager --licenses
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-      - name: Extract project and create wrapper
+      - name: Extract project
         run: |
-          unzip -o PetraRide-Android-Starter.zip -d extracted
-          cd extracted/PetraRidePilot
-          gradle wrapper --gradle-version 8.9
+          unzip -o PetraRide-Phone-Build-Kit.zip -d kit
+          unzip -o kit/PetraRidePilot-Android-Starter.zip -d extracted
 
       - name: Build APK
         run: |
           cd extracted/PetraRidePilot
+          gradle wrapper --gradle-version 8.9
           chmod +x gradlew
           ./gradlew assembleDebug
 
