@@ -18,13 +18,35 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Locate Android SDK
+        shell: bash
+        run: |
+          set -e
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager | head -n 1)"
+
+          if [ -z "$SDKMANAGER" ]; then
+            echo "ERROR: sdkmanager not found"
+            find "$SDK_ROOT" -maxdepth 4 -type f | head -100
+            exit 1
+          fi
+
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
+          echo "$(dirname "$SDKMANAGER")" >> "$GITHUB_PATH"
+          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
+
+          echo "Found SDK manager: $SDKMANAGER"
 
       - name: Install Android packages
+        shell: bash
         run: |
-          yes | sdkmanager --licenses
-          sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          set -e
+          yes | "$SDKMANAGER" --licenses || true
+          "$SDKMANAGER" --install \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
 
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -35,18 +57,16 @@ jobs:
         shell: bash
         run: |
           set -e
-
           unzip -o PetraRide-Phone-Build-Kit.zip -d kit
 
           STARTER_ZIP="$(find kit -type f -iname '*starter*.zip' -print -quit)"
 
           if [ -z "$STARTER_ZIP" ]; then
-            echo "ERROR: Starter ZIP not found inside build kit."
+            echo "ERROR: Starter ZIP not found"
             find kit -type f
             exit 1
           fi
 
-          echo "Found project: $STARTER_ZIP"
           mkdir -p extracted
           unzip -o "$STARTER_ZIP" -d extracted
 
@@ -58,14 +78,12 @@ jobs:
           SETTINGS_FILE="$(find extracted -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)"
 
           if [ -z "$SETTINGS_FILE" ]; then
-            echo "ERROR: Android Gradle project not found."
-            find extracted -maxdepth 4 -type f
+            echo "ERROR: Gradle project not found"
+            find extracted -maxdepth 5 -type f
             exit 1
           fi
 
           PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
-          echo "Project directory: $PROJECT_DIR"
-
           cd "$PROJECT_DIR"
 
           gradle wrapper --gradle-version 8.9
