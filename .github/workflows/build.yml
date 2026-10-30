@@ -10,20 +10,23 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
-      - name: Download project
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Java
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Check Android SDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls "$ANDROID_HOME/platforms"
+          ls "$ANDROID_HOME/build-tools"
 
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -32,7 +35,7 @@ jobs:
 
       - name: Extract project and create wrapper
         run: |
-          unzip -o PetraRidePilot-Android-Starter.zip -d extracted
+          unzip -o PetraRide-Android-Starter.zip -d extracted
           cd extracted/PetraRidePilot
           gradle wrapper --gradle-version 8.9
 
