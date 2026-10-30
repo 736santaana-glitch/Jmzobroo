@@ -27,7 +27,6 @@ jobs:
 
           if [ -z "$SDKMANAGER" ]; then
             echo "ERROR: sdkmanager not found"
-            find "$SDK_ROOT" -maxdepth 4 -type f | head -100
             exit 1
           fi
 
@@ -35,8 +34,6 @@ jobs:
           echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
           echo "$(dirname "$SDKMANAGER")" >> "$GITHUB_PATH"
           echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
-
-          echo "Found SDK manager: $SDKMANAGER"
 
       - name: Install Android packages
         shell: bash
@@ -70,6 +67,18 @@ jobs:
           mkdir -p extracted
           unzip -o "$STARTER_ZIP" -d extracted
 
+      - name: Align Java target to JVM 17
+        shell: bash
+        run: |
+          cat > ci.init.gradle <<'EOF'
+          allprojects {
+              tasks.withType(org.gradle.api.tasks.compile.JavaCompile).configureEach {
+                  sourceCompatibility = '17'
+                  targetCompatibility = '17'
+              }
+          }
+          EOF
+
       - name: Build Android APK
         shell: bash
         run: |
@@ -88,7 +97,8 @@ jobs:
 
           gradle wrapper --gradle-version 8.9
           chmod +x gradlew
-          ./gradlew assembleDebug
+
+          ./gradlew assembleDebug -I "$GITHUB_WORKSPACE/ci.init.gradle"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
