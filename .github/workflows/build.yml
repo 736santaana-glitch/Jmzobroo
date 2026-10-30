@@ -32,6 +32,7 @@ jobs:
         run: |
           unzip -o PetraRide-Phone-Build-Kit.zip -d kit
           unzip -o kit/PetraRidePilot-Android-Starter.zip -d extracted
+          ls -la extracted
 
       - name: Build APK
         run: |
