@@ -22,6 +22,7 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
+
       - name: Install Android packages
         run: |
           sdkmanager --install \
@@ -40,7 +41,6 @@ jobs:
           unzip -o PetraRide-Phone-Build-Kit.zip -d kit
 
           STARTER_ZIP="$(find kit -type f -iname '*starter*.zip' -print -quit)"
-
           test -n "$STARTER_ZIP"
 
           mkdir -p extracted
@@ -52,25 +52,49 @@ jobs:
           set -e
 
           SETTINGS_FILE="$(find extracted -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)"
-
           test -n "$SETTINGS_FILE"
 
           PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
           cd "$PROJECT_DIR"
 
+          APP_GRADLE="$PROJECT_DIR/app/build.gradle.kts"
+          test -f "$APP_GRADLE"
+
+          python3 - "$APP_GRADLE" <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+
+          p = Path(sys.argv[1])
+          content = p.read_text()
+
+          if "compileOptions" not in content:
+              content, count = re.subn(
+                  r'(?m)^android\s*\{',
+                  '''android {
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+          ''',
+                  content,
+                  count=1
+              )
+              if count != 1:
+                  raise SystemExit("Could not find android { block in app/build.gradle.kts")
+
+          p.write_text(content)
+          print("Java and Kotlin targets configured to JVM 17")
+          PY
+
           gradle wrapper --gradle-version 8.9
           chmod +x gradlew
 
-          cat > ci-java17.gradle <<'EOF'
-          allprojects {
-              tasks.withType(JavaCompile).configureEach {
-                  sourceCompatibility = '17'
-                  targetCompatibility = '17'
-              }
-          }
-          EOF
-
-          ./gradlew -I ci-java17.gradle assembleDebug
+          ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
