@@ -57,8 +57,32 @@ jobs:
           PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
           cd "$PROJECT_DIR"
 
-          APP_GRADLE="$PROJECT_DIR/app/build.gradle.kts"
-          test -f "$APP_GRADLE"
+          echo "Searching for Android application Gradle file..."
+
+          APP_GRADLE="$(python3 - "$PROJECT_DIR" <<'PY'
+          from pathlib import Path
+          import sys
+
+          root = Path(sys.argv[1])
+
+          candidates = list(root.rglob("build.gradle.kts"))
+          candidates += list(root.rglob("build.gradle"))
+
+          for p in candidates:
+              lines = p.read_text(errors="replace").splitlines()
+              for line in lines:
+                  if "com.android.application" in line and "apply false" not in line:
+                      print(p)
+                      raise SystemExit(0)
+
+          print("ERROR: Android application Gradle file not found.", file=sys.stderr)
+          for p in candidates:
+              print(p, file=sys.stderr)
+          raise SystemExit(1)
+          PY
+          )"
+
+          echo "Found application file: $APP_GRADLE"
 
           python3 - "$APP_GRADLE" <<'PY'
           from pathlib import Path
@@ -67,28 +91,60 @@ jobs:
 
           p = Path(sys.argv[1])
           content = p.read_text()
+          is_kotlin = p.name.endswith(".gradle.kts")
 
           if "compileOptions" not in content:
-              content, count = re.subn(
-                  r'(?m)^android\s*\{',
-                  '''android {
+              if is_kotlin:
+                  java_options = """
               compileOptions {
                   sourceCompatibility = JavaVersion.VERSION_17
                   targetCompatibility = JavaVersion.VERSION_17
               }
-
-              kotlinOptions {
-                  jvmTarget = "17"
+          """
+              else:
+                  java_options = """
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
               }
-          ''',
+          """
+
+              content, count = re.subn(
+                  r'(?m)^(\s*)android\s*\{',
+                  lambda m: m.group(0) + java_options,
                   content,
                   count=1
               )
+
               if count != 1:
-                  raise SystemExit("Could not find android { block in app/build.gradle.kts")
+                  raise SystemExit("Could not find android { block")
+
+          if "kotlinOptions" not in content:
+              if is_kotlin:
+                  kotlin_options = """
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+          """
+              else:
+                  kotlin_options = """
+              kotlinOptions {
+                  jvmTarget = '17'
+              }
+          """
+
+              content, count = re.subn(
+                  r'(?m)^(\s*)android\s*\{',
+                  lambda m: m.group(0) + kotlin_options,
+                  content,
+                  count=1
+              )
+
+              if count != 1:
+                  raise SystemExit("Could not add Kotlin JVM target")
 
           p.write_text(content)
-          print("Java and Kotlin targets configured to JVM 17")
+          print("Java and Kotlin configured for JVM 17")
           PY
 
           gradle wrapper --gradle-version 8.9
