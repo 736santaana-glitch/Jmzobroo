@@ -38,7 +38,7 @@ jobs:
         run: |
           set -e
           mkdir -p extracted
-          unzip -o PetraRidePilot-Vision1.zip -d extracted
+          unzip -o PetraRidePilot-Vision2.zip -d extracted
 
       - name: Build Android APK
         shell: bash
